@@ -136,9 +136,11 @@ describe("readPaperBrief", () => {
     vi.resetModules();
     mockFetch.mockReset();
     vi.stubGlobal("fetch", mockFetch);
+    vi.unstubAllEnvs();
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("returns brief on success", async () => {
@@ -221,8 +223,34 @@ describe("readPaperBrief", () => {
     expect(result!.keywords).toEqual([]);
   });
 
-  // F-025: auth failures must surface — no silent arXiv fallback.
-  it("does NOT fall back to arXiv on DeepXiv 401", async () => {
+  // F-025: when no DeepXiv token is configured, 401 still triggers the arXiv
+  // fallback so unauthenticated deployments get useful results.
+  it("falls back to arXiv on DeepXiv 401 when no token is configured", async () => {
+    const { readPaperBrief } = await import("@/services/paper-search.service");
+
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "Token is required." }), { status: 401 }),
+    );
+    const atom = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/2401.12345v1</id>
+    <title>Unauth Fallback</title>
+    <summary>abstract</summary>
+    <author><name>Author</name></author>
+  </entry>
+</feed>`;
+    mockFetch.mockResolvedValueOnce(new Response(atom, { status: 200 }));
+
+    const result = await readPaperBrief("2401.12345");
+    expect(result).not.toBeNull();
+    expect(result!.title).toBe("Unauth Fallback");
+  });
+
+  // F-025: with a configured token, 401 indicates a misconfiguration and
+  // should surface as null rather than silently falling back.
+  it("does NOT fall back on DeepXiv 401 when a token IS configured", async () => {
+    vi.stubEnv("DEEPXIV_TOKEN", "test-token-123");
     const { readPaperBrief } = await import("@/services/paper-search.service");
 
     mockFetch.mockResolvedValueOnce(
@@ -231,7 +259,6 @@ describe("readPaperBrief", () => {
 
     const result = await readPaperBrief("2401.12345");
     expect(result).toBeNull();
-    // Should not have attempted arXiv
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 

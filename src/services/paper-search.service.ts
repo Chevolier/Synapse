@@ -196,24 +196,26 @@ export async function searchDeepXiv(
  * Unlike `fetchWithRetry`, this preserves the final HTTP status so callers can
  * distinguish 404 "paper not found" from transient failures. Retries 429/5xx.
  */
-async function deepxivGet(url: string): Promise<{ status: number; json: unknown | null }> {
+async function deepxivGet(url: string): Promise<{ status: number; json: unknown | null; authenticated: boolean }> {
   let lastStatus = 0;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      const headers = await deepxivHeaders();
+      const authenticated = "Authorization" in headers;
       const resp = await fetch(url, {
         signal: AbortSignal.timeout(15_000),
-        headers: await deepxivHeaders(),
+        headers,
       });
       lastStatus = resp.status;
       if (resp.ok) {
         try {
-          return { status: resp.status, json: await resp.json() };
+          return { status: resp.status, json: await resp.json(), authenticated };
         } catch {
-          return { status: resp.status, json: null };
+          return { status: resp.status, json: null, authenticated };
         }
       }
       const retryable = resp.status === 429 || (resp.status >= 500 && resp.status < 600);
-      if (!retryable || attempt === MAX_RETRIES) return { status: resp.status, json: null };
+      if (!retryable || attempt === MAX_RETRIES) return { status: resp.status, json: null, authenticated };
 
       const retryAfter = resp.headers.get("Retry-After");
       const delayMs = retryAfter
@@ -221,19 +223,23 @@ async function deepxivGet(url: string): Promise<{ status: number; json: unknown 
         : BACKOFF_BASE_MS * Math.pow(2, attempt);
       await new Promise((r) => setTimeout(r, delayMs));
     } catch {
-      if (attempt === MAX_RETRIES) return { status: lastStatus, json: null };
+      if (attempt === MAX_RETRIES) return { status: lastStatus, json: null, authenticated: false };
       await new Promise((r) => setTimeout(r, BACKOFF_BASE_MS * Math.pow(2, attempt)));
     }
   }
-  return { status: lastStatus, json: null };
+  return { status: lastStatus, json: null, authenticated: false };
 }
 
 /**
- * Treat DeepXiv 404 responses (and explicit "paper not found" error payloads)
- * as a signal to fall back to the public arXiv Atom API.
+ * Trigger the public-arXiv fallback when DeepXiv cannot answer the request.
+ * - 404 / "paper not found" payload: paper genuinely missing from DeepXiv.
+ * - 401 / 403 with no token configured: DeepXiv requires auth we don't have;
+ *   fall back to public arXiv rather than failing the agent's read.
+ * Authenticated 401/403 means a misconfigured token — surface that as an error.
  */
-function deepxivIsNotFound(status: number, json: unknown): boolean {
+function deepxivIsNotFound(status: number, json: unknown, authenticated: boolean): boolean {
   if (status === 404) return true;
+  if (!authenticated && (status === 401 || status === 403)) return true;
   if (json && typeof json === "object") {
     const record = json as Record<string, unknown>;
     const msg =
@@ -241,8 +247,11 @@ function deepxivIsNotFound(status: number, json: unknown): boolean {
         ? record.error
         : typeof record.message === "string"
           ? record.message
-          : null;
+          : typeof record.detail === "string"
+            ? record.detail
+            : null;
     if (msg && /not\s*found/i.test(msg)) return true;
+    if (msg && !authenticated && /token\s+is\s+required/i.test(msg)) return true;
   }
   return false;
 }
@@ -295,11 +304,12 @@ export async function readPaperBrief(arxivId: string): Promise<DeepXivBrief | nu
   const params = new URLSearchParams({ type: "brief", arxiv_id: arxivId });
   const url = `${DEEPXIV_BASE}?${params}`;
 
-  const { status, json } = await deepxivGet(url);
+  const { status, json, authenticated } = await deepxivGet(url);
 
-  // F-025: fall back to public arXiv only when DeepXiv says "not found" —
-  // auth/network/5xx errors must surface so callers see the real failure.
-  if (deepxivIsNotFound(status, json)) {
+  // F-025: fall back to public arXiv when DeepXiv cannot answer (not-found, or
+  // unauthenticated 401/403 when no token is configured). Real auth failures
+  // with a configured token still surface as null so operators notice.
+  if (deepxivIsNotFound(status, json, authenticated)) {
     const arxivPaper = await fetchArxivById(arxivId);
     if (!arxivPaper) return null;
     return {
@@ -336,11 +346,12 @@ export async function readPaperHead(arxivId: string): Promise<DeepXivHead | null
   const params = new URLSearchParams({ type: "head", arxiv_id: arxivId });
   const url = `${DEEPXIV_BASE}?${params}`;
 
-  const { status, json } = await deepxivGet(url);
+  const { status, json, authenticated } = await deepxivGet(url);
 
-  // F-025: on "not found", synthesize a minimal head from the public arXiv
-  // abstract so agents can at least see the title + abstract.
-  if (deepxivIsNotFound(status, json)) {
+  // F-025: on "not found" or unauthenticated-no-token, synthesize a minimal
+  // head from the public arXiv abstract so agents can at least see the
+  // title + abstract.
+  if (deepxivIsNotFound(status, json, authenticated)) {
     const arxivPaper = await fetchArxivById(arxivId);
     if (!arxivPaper) return null;
     return {
