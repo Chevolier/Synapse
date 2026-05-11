@@ -354,11 +354,11 @@ Base branch: ${repoAccess.baseBranch ?? "main"}`;
 
     steps.push(`${stepNum++}. Call synapse_list_compute_nodes to check available machines and GPUs before making any execution decision. Do not assume compute is available from memory or project text. Determine how many GPUs you need based on the experiment description.`);
 
-    steps.push(`${stepNum++}. If enough GPUs are available, call synapse_reserve_gpus with experimentUuid "${experimentUuid}" and the gpuUuids to reserve them. If the reservation fails (another experiment reserved them first), go back to the compute check and re-check available GPUs. If not enough GPUs are available (or reservation keeps failing), report via synapse_report_experiment_progress with liveStatus "queuing" and a message like "Waiting for N GPUs to become available", then wait and retry periodically until you can successfully reserve.`);
+    steps.push(`${stepNum++}. If enough GPUs are available, call synapse_reserve_gpus with experimentUuid "${experimentUuid}" and the gpuUuids to reserve them. If the reservation fails (another experiment reserved them first), go back to the compute check and re-check available GPUs. If not enough GPUs are available (or reservation keeps failing), report via synapse_report_experiment_progress with liveStatus "queuing" and you are done`);
 
     steps.push(`${stepNum++}. After a successful synapse_reserve_gpus call, call synapse_start_experiment with experimentUuid "${experimentUuid}" to mark the experiment as in-progress. Do not repeat gpuUuids here unless you intentionally skipped the standalone reservation step.`);
 
-    steps.push(`${stepNum++}. If the compute node has managedKeyAvailable=true, call synapse_get_node_access_bundle with experimentUuid "${experimentUuid}" and the nodeUuid. Write the returned privateKeyPemBase64 to a local PEM file (chmod 600) and SSH using the returned host/user/port.`);
+    steps.push(`${stepNum++}. call synapse_get_node_access_bundle with experimentUuid "${experimentUuid}" and the nodeUuid. Write the returned privateKeyPemBase64 to a local PEM file (chmod 600) and SSH using the returned host/user/port.`);
 
     if (hasRepo) {
       steps.push(`${stepNum++}. On the compute node, clone the repo: git clone <Clone URL above>. Then checkout the base branch: git checkout ${baseBranch}.`);
@@ -366,15 +366,10 @@ Base branch: ${repoAccess.baseBranch ?? "main"}`;
 
     steps.push(`${stepNum++}. Execute the experiment on the compute node according to the experiment description. For long-running jobs, prefer launching the workload inside tmux so the process survives disconnects and you can re-attach later. If the workload writes Python stdout/stderr to a log file, run Python in unbuffered mode so logs appear in real time for monitoring. Prefer python -u (or PYTHONUNBUFFERED=1). If helpful, combine it with tee/stdout piping so progress is visible immediately instead of being trapped in a full buffer.`);
 
-    steps.push(`${stepNum++}. For long-running experiments (training jobs, multi-hour evaluations), set up a self-contained cron monitoring script on the compute node. The script must handle EVERYTHING autonomously — you (the agent) will NOT be available after this step. The cron script must:
-   a. Read the latest training/evaluation logs, extract key metrics (loss, accuracy, eval scores, etc.), and produce a concise summary.
+    steps.push(`${stepNum++}. For long-running experiments (training jobs, multi-hour evaluations), set up a cron job to monitor the work:
+   a. Write a script to read the latest training/evaluation logs, extract key metrics(loss, accuracy, eval scores etc.) so that agent can summarize.
    b. Call synapse_report_experiment_progress with experimentUuid "${experimentUuid}" to report the latest metrics and deliver updates to the latest channel.
-   c. Detect when the experiment finishes (e.g. training completes, final evaluation done, process exits).
-   d. On completion, the script itself must execute ALL of the following finalization steps:
-      ${hasRepo ? `- Git commit and push: follow the project description's branch strategy (e.g. single persistent branch, per-experiment branches, keep/discard workflow). If not specified, create a new branch or commit on the current branch.\n      ` : ""}- Call synapse_submit_experiment_results with experimentUuid "${experimentUuid}"${hasRepo ? ", experimentBranch, and commitSha" : ""} to mark the experiment as completed and release reserved GPUs.
-      - Remove the cron job itself (crontab cleanup).
-   e. IMPORTANT: The script must be fully self-contained. It must be able to call Synapse MCP tools (use curl against the Synapse API with the agent's API key). Do NOT rely on the agent being available to handle completion — the agent's turn ends after setting up the cron job.
-   f. Before finishing your turn, test the monitoring script manually to verify it works, install it as a cron job (every 30 minutes), and confirm the cron entry is active.
+   c. On completion: git commit/push, call synapse_submit_experiment_results, remove cron job.
    For short experiments that you can monitor directly, skip the cron setup and proceed to the next steps manually.`);
 
     steps.push(`${stepNum++}. If you are monitoring the experiment directly (no cron), call synapse_report_experiment_progress with experimentUuid "${experimentUuid}" at each major step (data download, training start, each evaluation checkpoint, major metric change, etc.).`);
@@ -446,29 +441,24 @@ ${steps.join("\n")}`;
     const prompt = isFullAuto
       ? `[Synapse] Autonomous research loop triggered — FULL AUTO MODE — project "${n.entityTitle}" (projectUuid: ${projectUuid}).
 
-There is available capacity to run the next experiment. You are in FULL AUTO mode — propose your next experiment and it will be automatically assigned to you for execution.
+You are in FULL AUTO mode — propose your next experiment and it will be automatically assigned to you for execution.
 
 Your task:
-1. Create a todo list and keep it updated while analyzing and proposing.
-2. Call synapse_get_project_full_context with researchProjectUuid "${projectUuid}" to review the project brief, evaluation methods, all past experiment results, latest synthesis, and compute availability.
-3. Read the project description carefully — it is your "program.md" (research directives from the human)
-4. Read evaluationMethods — it defines the metric to optimize and keep/discard criteria
-5. Analyze past results: What worked? What didn't? What should you try next?
-6. Call synapse_propose_experiment once per independent run you want to execute. Do NOT combine comparison runs, ablations, or multiple parameter sweeps into one experiment card; create multiple experiment cards instead.
-7. Before proposing, account for computeAvailability and experimentQueue from the context. Propose at most the available GPU capacity unless the project explicitly says otherwise.
+1. Call synapse_get_project_full_context with researchProjectUuid "${projectUuid}" to review the project brief, evaluation methods, all past experiment results, latest synthesis, and compute availability.
+2. Read the project description carefully — it is your "program.md" (research directives from the human)
+3. Read evaluationMethods — it defines the metric to optimize and keep/discard criteria
+4. Analyze past results: What worked? What didn't? What should you try next?
+5. Call synapse_propose_experiment once per independent run you want to execute. Do NOT combine comparison runs, ablations, or multiple parameter sweeps into one experiment card; create multiple experiment cards instead.
 
 After you propose, the platform will automatically trigger the experiment execution flow. You do NOT need to start the experiment yourself.
 
-IMPORTANT: You are autonomous. Do NOT ask for permission. Do NOT pause to ask if you should continue. The human may be asleep. If the research objectives are clearly met, you may choose not to propose.`
+IMPORTANT: You are autonomous. Do NOT ask for permission. Do NOT pause to ask if you should continue. The human may be asleep.`
       : `[Synapse] Autonomous research loop triggered for project "${n.entityTitle}" (projectUuid: ${projectUuid}).
 
 The experiment queue is empty. Your task:
-1. Create a todo list and keep it updated while analyzing and proposing.
-2. Use synapse_get_project_full_context with researchProjectUuid "${projectUuid}" to review all project details, research questions, experiment results, latest synthesis, and compute availability.
-3. Analyze: What questions remain unanswered? What experiments could yield new insights? Are there gaps in the research?
-4. If you identify valuable next steps, use synapse_propose_experiment once per independent run to create experiments for human review. Do NOT combine comparison runs, ablations, or multiple parameter sweeps into one experiment card; create multiple experiment cards instead.
-5. Before proposing, account for computeAvailability and experimentQueue from the context. Propose at most the available GPU capacity unless the project explicitly says otherwise.
-6. If the research objectives appear to be met, you may choose not to propose any new experiments
+1. Use synapse_get_project_full_context with researchProjectUuid "${projectUuid}" to review all project details, research questions, experiment results, latest synthesis.
+2. Analyze: What questions remain unanswered? What experiments could yield new insights? Are there gaps in the research?
+3. If you identify valuable next steps, use synapse_propose_experiment once per independent run to create experiments for human review. Do NOT combine comparison runs, ablations, or multiple parameter sweeps into one experiment card; create multiple experiment cards instead
 
 Proposed experiments will enter "pending_review" status and require human approval before execution.`;
 
@@ -492,15 +482,13 @@ You may ONLY use these Synapse tools for this task:
 - synapse_get_documents
 - synapse_get_document
 - synapse_save_project_synthesis
-- synapse_complete_task
 
 Steps:
-1. Create a todo list and keep it updated while you work.
-2. Call synapse_get_project_full_context with researchProjectUuid "${projectUuid}" to review the project brief, evaluation methods, completed experiments, results log, latest synthesis, and compute context.
-3. If a prior project_synthesis document exists, read it and preserve useful historical conclusions.
-4. Analyze the returned experiment results: what improved, what regressed, what is uncertain, and what concrete next experiments should be proposed.
-5. Use synapse_save_project_synthesis with researchProjectUuid "${projectUuid}", title, and Markdown content. Put the newest analysis first, with clear sections for Summary, Evidence, Open Questions, and Recommended Next Experiments.
-6. REQUIRED: After saving, call synapse_complete_task with researchProjectUuid "${projectUuid}" and taskType "synthesis" to clear the working state.
+1. Call synapse_get_project_full_context with researchProjectUuid "${projectUuid}" to review the project brief, evaluation methods, completed experiments, results log, and latest synthesis.
+2. Use synapse_get_documents with type "project_synthesis" and synapse_get_document to read the existing synthesis document, if one exists.
+3. Decide whether the existing synthesis already covers all completed experiment results returned by the full context. If it already covers the current results, do not rewrite it; call synapse_save_project_synthesis with the existing title/content so the task is marked complete and the working state is cleared.
+4. If there are new completed experiment results not covered by the existing synthesis, analyze only the new evidence: what improved, what regressed, what is uncertain, and what concrete next experiments should be proposed.
+5. Use synapse_save_project_synthesis with researchProjectUuid "${projectUuid}", title, and Markdown content. Preserve useful historical conclusions from the old synthesis and add the newest analysis above the older analysis, with clear sections for Summary, Evidence, Open Questions, and Recommended Next Experiments.
 
 Additional instructions from the user:
 ${n.message}`;
@@ -534,17 +522,16 @@ You may ONLY use these Synapse tools for this task:
 - synapse_complete_task
 
 Steps:
-1. Create a todo list and keep it updated while you work.
-2. Use synapse_get_deep_research_report with researchProjectUuid "${projectUuid}" to check if a previous report exists — if so, read it to understand what was covered before
-3. Use synapse_get_related_works with researchProjectUuid "${projectUuid}" to get the full list of collected papers
-4. Use synapse_get_research_project with researchProjectUuid "${projectUuid}" to understand the research objectives, datasets, and evaluation methods
-5. For each paper with an arxivId, use progressive reading to understand its content:
+1. Use synapse_get_deep_research_report with researchProjectUuid "${projectUuid}" to check if a previous report exists — if so, read it to understand what was covered before
+2. Use synapse_get_related_works with researchProjectUuid "${projectUuid}" to get the full list of collected papers
+3. Use synapse_get_research_project with researchProjectUuid "${projectUuid}" to understand the research objectives, datasets, and evaluation methods
+4. For each paper with an arxivId, use progressive reading to understand its content:
    a. synapse_read_paper_head — get the paper structure and section TLDRs
    b. synapse_read_paper_section — read key sections relevant to the project (e.g. Introduction, Methods, Results, Conclusion)
    c. synapse_read_paper_full — only if needed for papers central to the research
-6. Analyze how each paper relates to the project's goals — identify key methods, findings, and gaps in the literature
-7. REQUIRED: Use synapse_save_deep_research_report with researchProjectUuid "${projectUuid}", title, and content (Markdown) to save the report. This creates v1 or updates to v2/v3 automatically.
-8. REQUIRED: After saving the report, call synapse_complete_task with researchProjectUuid "${projectUuid}" and taskType "deep_research" to signal completion.
+5. Analyze how each paper relates to the project's goals — identify key methods, findings, and gaps in the literature
+6. REQUIRED: Use synapse_save_deep_research_report with researchProjectUuid "${projectUuid}", title, and content (Markdown) to save the report. This creates v1 or updates to v2/v3 automatically.
+7. REQUIRED: After saving the report, call synapse_complete_task with researchProjectUuid "${projectUuid}" and taskType "deep_research" to signal completion.
 
 Writing guidelines:
 - Base your review on actual paper content, not just abstracts
@@ -580,11 +567,10 @@ You may ONLY use these Synapse tools for this task:
 - synapse_complete_task
 
 Steps:
-1. Create a todo list and keep it updated while you work.
-2. Use synapse_get_related_works with researchProjectUuid "${projectUuid}" to get all collected papers — note their titles, topics, and coverage areas
-3. Use synapse_get_research_project with researchProjectUuid "${projectUuid}" to understand the research objectives, datasets, and methods
-4. Compare the existing paper titles against the project objectives — identify which topics or areas are NOT yet covered by collected papers
-5. Based on the identified gaps, use synapse_search_papers to find new relevant academic papers — craft queries specifically targeting the missing areas
+1. Use synapse_get_related_works with researchProjectUuid "${projectUuid}" to get all collected papers — note their titles, topics, and coverage areas
+2. Use synapse_get_research_project with researchProjectUuid "${projectUuid}" to understand the research objectives, datasets, and methods
+3. Compare the existing paper titles against the project objectives — identify which topics or areas are NOT yet covered by collected papers
+4. Based on the identified gaps, use synapse_search_papers to find new relevant academic papers — craft queries specifically targeting the missing areas
 6. For each candidate paper with an arxivId, use synapse_read_paper_brief to check its TLDR and keywords — only add papers that are genuinely relevant and fill gaps
 7. For each relevant paper, use synapse_add_related_work with researchProjectUuid "${projectUuid}" to add it (duplicates are automatically skipped — if isNew=false, the paper already existed)
 8. Search with multiple query variations to maximize coverage, but call synapse_search_papers sequentially (one at a time) to avoid rate limits. Do NOT call synapse_search_papers more than 10 times total.
@@ -672,6 +658,7 @@ Write a detailed experiment report document for this experiment. Follow these st
    - Analysis and interpretation
    - Conclusions and next steps
 4. Write the report in the same language as the project description.
+5. Use python to plot graphs to analyze and showcase results from different angles, attach it to the document markdown
 5. Use synapse_save_experiment_report with experimentUuid "${n.entityUuid}" and the full Markdown content to create or update the dedicated experiment result document for this experiment. Do NOT post the report as an experiment comment.
 
 Keep the report focused on THIS experiment only — do not summarize the entire project.`,

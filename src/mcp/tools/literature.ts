@@ -12,13 +12,13 @@ import { saveProjectSynthesisDocument } from "@/services/project-synthesis.servi
 const TASK_TYPE_FIELDS = {
   auto_search: { activeField: "autoSearchActiveAgentUuid", notificationAction: "auto_search_completed" },
   deep_research: { activeField: "deepResearchActiveAgentUuid", notificationAction: "deep_research_completed" },
-  synthesis: { activeField: "synthesisActiveAgentUuid", notificationAction: "synthesis_updated" },
+  synthesis: { activeField: "synthesisActiveAgentUuid", notificationAction: "synthesis_refresh_completed" },
 } as const;
 
 const TASK_COMPLETION_MESSAGES = {
   auto_search: "Auto-search for related papers has completed.",
   deep_research: "Deep research literature review has completed.",
-  synthesis: "Project synthesis has been updated.",
+  synthesis: "Project synthesis has been updated by agent.",
 } as const;
 
 export function registerLiteratureTools(server: McpServer, auth: AgentAuthContext) {
@@ -319,7 +319,7 @@ export function registerLiteratureTools(server: McpServer, auth: AgentAuthContex
   server.registerTool(
     "synapse_save_project_synthesis",
     {
-      description: "Create or update the project-level rolling synthesis document with agent-written analysis.",
+      description: "Create or update the project-level rolling synthesis document with agent-written analysis, then clear the active synthesis task.",
       inputSchema: z.object({
         researchProjectUuid: z.string(),
         title: z.string().optional(),
@@ -336,6 +336,19 @@ export function registerLiteratureTools(server: McpServer, auth: AgentAuthContex
           content,
         });
 
+        const project = await prisma.researchProject.findFirst({
+          where: { uuid: researchProjectUuid, companyUuid: auth.companyUuid },
+          select: { name: true, synthesisActiveAgentUuid: true, synthesisStartedAt: true },
+        });
+        const activeAgentUuid = project?.synthesisActiveAgentUuid ?? null;
+        const cleared = Boolean(activeAgentUuid || project?.synthesisStartedAt);
+        if (cleared) {
+          await prisma.researchProject.update({
+            where: { uuid: researchProjectUuid },
+            data: { synthesisActiveAgentUuid: null, synthesisStartedAt: null },
+          });
+        }
+
         eventBus.emitChange({
           companyUuid: auth.companyUuid,
           researchProjectUuid,
@@ -344,8 +357,34 @@ export function registerLiteratureTools(server: McpServer, auth: AgentAuthContex
           action: "updated",
         });
 
+        if (activeAgentUuid && project) {
+          try {
+            const agent = await prisma.agent.findUnique({
+              where: { uuid: activeAgentUuid },
+              select: { ownerUuid: true, name: true },
+            });
+            if (agent?.ownerUuid) {
+              await notificationService.create({
+                companyUuid: auth.companyUuid,
+                researchProjectUuid,
+                recipientType: "user",
+                recipientUuid: agent.ownerUuid,
+                entityType: "research_project",
+                entityUuid: researchProjectUuid,
+                entityTitle: project.name,
+                projectName: project.name,
+                action: "synthesis_refresh_completed",
+                message: TASK_COMPLETION_MESSAGES.synthesis,
+                actorType: "agent",
+                actorUuid: activeAgentUuid,
+                actorName: agent.name ?? "Agent",
+              });
+            }
+          } catch { /* ignore notification errors */ }
+        }
+
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({ document }, null, 2) }],
+          content: [{ type: "text" as const, text: JSON.stringify({ document, cleared }, null, 2) }],
         };
       } catch (err) {
         return {
@@ -386,7 +425,9 @@ export function registerLiteratureTools(server: McpServer, auth: AgentAuthContex
 
       await prisma.researchProject.update({
         where: { uuid: researchProjectUuid },
-        data: { [config.activeField]: null },
+        data: taskType === "synthesis"
+          ? { [config.activeField]: null, synthesisStartedAt: null }
+          : { [config.activeField]: null },
       });
 
       eventBus.emitChange({

@@ -642,7 +642,7 @@ export function registerComputeTools(server: McpServer, auth: AgentAuthContext) 
   server.registerTool(
     "synapse_get_project_full_context",
     {
-      description: "Get full research context for a project: brief, datasets, evaluation methods, all research questions, all experiments with outcomes, and related works count. Use for autonomous research analysis.",
+      description: "Get full research context for a project: brief, datasets, evaluation methods, all research questions, experiments with UUIDs and outcome summaries, related-work paper titles, document references, and compute availability. Use for autonomous research analysis.",
       inputSchema: z.object({
         researchProjectUuid: z.string(),
       }),
@@ -665,6 +665,14 @@ export function registerComputeTools(server: McpServer, auth: AgentAuthContext) 
             },
             orderBy: { createdAt: "asc" },
           },
+          relatedWorks: {
+            select: { title: true },
+            orderBy: { createdAt: "desc" },
+          },
+          documents: {
+            select: { uuid: true, title: true, type: true, updatedAt: true },
+            orderBy: { updatedAt: "desc" },
+          },
           _count: { select: { relatedWorks: true } },
         },
       });
@@ -674,6 +682,8 @@ export function registerComputeTools(server: McpServer, auth: AgentAuthContext) 
 
       // Slim experiment data — truncate description/results for overview
       const trimmedExperiments = project.experiments.map((exp) => ({
+        // id is a public UUID alias for agents that look for an id field.
+        id: exp.uuid,
         uuid: exp.uuid,
         title: exp.title,
         status: exp.status,
@@ -682,6 +692,14 @@ export function registerComputeTools(server: McpServer, auth: AgentAuthContext) 
         completedAt: exp.completedAt,
         description: exp.description ? (exp.description.length > 120 ? exp.description.slice(0, 120) + "..." : exp.description) : null,
         resultSummary: exp.results ? (String(exp.results).length > 150 ? String(exp.results).slice(0, 150) + "..." : String(exp.results)) : null,
+      }));
+      const relatedWorks = project.relatedWorks.map((work) => work.title);
+      const documents = project.documents.map((document) => ({
+        id: document.uuid,
+        uuid: document.uuid,
+        title: document.title,
+        type: document.type,
+        updatedAt: document.updatedAt,
       }));
 
       // Fetch the auto-maintained experiment results log if it exists
@@ -718,11 +736,19 @@ export function registerComputeTools(server: McpServer, auth: AgentAuthContext) 
 
       return {
         content: [{ type: "text", text: JSON.stringify({
-          project: { ...project, experiments: trimmedExperiments },
+          project: {
+            ...project,
+            experiments: trimmedExperiments,
+            relatedWorks,
+            relatedWorksCount: project._count.relatedWorks,
+            documents,
+          },
           resultsLog: resultsLog ? { uuid: resultsLog.uuid, content: resultsLog.content, updatedAt: resultsLog.updatedAt } : null,
+          relatedWorks,
+          documents,
           computeAvailability,
           experimentQueue: { inProgress: inProgressCount, pendingStart: pendingStartCount },
-          _hint: "Use synapse_get_experiment for full details of a specific experiment. When proposing experiments, consider available compute resources — propose at most as many experiments as there are available GPUs, minus already queued/running experiments. Each experiment card must represent ONE independent run: split sweeps, ablations, repeated trials, and baseline-vs-variant comparisons into separate cards. Multi-phase cards are only acceptable when the phases are strictly sequential stages of a single run — never pack parallel or comparative runs together.",
+          _hint: "Experiment id and uuid fields are the same public UUID; pass either value as experimentUuid to synapse_get_experiment for full details. Document id and uuid fields are the same public UUID; pass either value as documentUuid to synapse_get_document for full content. Use synapse_get_related_works when paper metadata beyond titles is needed. When proposing experiments, consider available compute resources — propose at most as many experiments as there are available GPUs, minus already queued/running experiments. Each experiment card must represent ONE independent run: split sweeps, ablations, repeated trials, and baseline-vs-variant comparisons into separate cards. Multi-phase cards are only acceptable when the phases are strictly sequential stages of a single run — never pack parallel or comparative runs together.",
         }, null, 2) }],
       };
     }

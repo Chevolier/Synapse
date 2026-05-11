@@ -53,7 +53,7 @@ export const commonToolDefinitions = defineOpenClawTools([
   }),
   createPassthroughTool<{ researchProjectUuid: string }>({
     name: "synapse_get_project_full_context",
-    description: "Get full research context for a project: brief, datasets, evaluation methods, all research questions, all experiments with outcomes, and related works count.",
+    description: "Get full research context for a project: brief, datasets, evaluation methods, all research questions, experiments with UUIDs and outcome summaries, related-work paper titles, document references, and compute availability.",
     parameters: {
       type: "object",
       properties: {
@@ -742,7 +742,7 @@ export const commonToolDefinitions = defineOpenClawTools([
   // =========================================================================
   createPassthroughTool<{ researchProjectUuid: string; title?: string; content: string }>({
     name: "synapse_save_project_synthesis",
-    description: "Create or update the project-level rolling synthesis / insights document for a project.",
+    description: "Create or update the project-level rolling synthesis / insights document for a project, then clear the active synthesis task.",
     parameters: {
       type: "object",
       properties: {
