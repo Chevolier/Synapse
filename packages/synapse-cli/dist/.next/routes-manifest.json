@@ -60,6 +60,14 @@
       "namedRegex": "^/api/api\\-keys/(?<nxtPuuid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/compute-gpus/[uuid]/release",
+      "regex": "^/api/compute\\-gpus/([^/]+?)/release(?:/)?$",
+      "routeKeys": {
+        "nxtPuuid": "nxtPuuid"
+      },
+      "namedRegex": "^/api/compute\\-gpus/(?<nxtPuuid>[^/]+?)/release(?:/)?$"
+    },
+    {
       "page": "/api/compute-nodes/[uuid]",
       "regex": "^/api/compute\\-nodes/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -82,6 +90,23 @@
         "nxtPuuid": "nxtPuuid"
       },
       "namedRegex": "^/api/documents/(?<nxtPuuid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/documents/[uuid]/images",
+      "regex": "^/api/documents/([^/]+?)/images(?:/)?$",
+      "routeKeys": {
+        "nxtPuuid": "nxtPuuid"
+      },
+      "namedRegex": "^/api/documents/(?<nxtPuuid>[^/]+?)/images(?:/)?$"
+    },
+    {
+      "page": "/api/documents/[uuid]/images/[filename]",
+      "regex": "^/api/documents/([^/]+?)/images/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPuuid": "nxtPuuid",
+        "nxtPfilename": "nxtPfilename"
+      },
+      "namedRegex": "^/api/documents/(?<nxtPuuid>[^/]+?)/images/(?<nxtPfilename>[^/]+?)(?:/)?$"
     },
     {
       "page": "/api/experiment-designs/[uuid]",
@@ -439,6 +464,30 @@
       "namedRegex": "^/api/research\\-projects/(?<nxtPuuid>[^/]+?)/research\\-questions(?:/)?$"
     },
     {
+      "page": "/api/research-projects/[uuid]/synthesis/complete",
+      "regex": "^/api/research\\-projects/([^/]+?)/synthesis/complete(?:/)?$",
+      "routeKeys": {
+        "nxtPuuid": "nxtPuuid"
+      },
+      "namedRegex": "^/api/research\\-projects/(?<nxtPuuid>[^/]+?)/synthesis/complete(?:/)?$"
+    },
+    {
+      "page": "/api/research-projects/[uuid]/synthesis/refresh",
+      "regex": "^/api/research\\-projects/([^/]+?)/synthesis/refresh(?:/)?$",
+      "routeKeys": {
+        "nxtPuuid": "nxtPuuid"
+      },
+      "namedRegex": "^/api/research\\-projects/(?<nxtPuuid>[^/]+?)/synthesis/refresh(?:/)?$"
+    },
+    {
+      "page": "/api/research-projects/[uuid]/synthesis/trigger",
+      "regex": "^/api/research\\-projects/([^/]+?)/synthesis/trigger(?:/)?$",
+      "routeKeys": {
+        "nxtPuuid": "nxtPuuid"
+      },
+      "namedRegex": "^/api/research\\-projects/(?<nxtPuuid>[^/]+?)/synthesis/trigger(?:/)?$"
+    },
+    {
       "page": "/api/research-questions/[uuid]",
       "regex": "^/api/research\\-questions/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -493,6 +542,14 @@
         "nxtPuuid": "nxtPuuid"
       },
       "namedRegex": "^/project\\-groups/(?<nxtPuuid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/research-projects/[uuid]",
+      "regex": "^/research\\-projects/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPuuid": "nxtPuuid"
+      },
+      "namedRegex": "^/research\\-projects/(?<nxtPuuid>[^/]+?)(?:/)?$"
     },
     {
       "page": "/research-projects/[uuid]/activity",
