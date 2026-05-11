@@ -79,7 +79,7 @@ For current research work, prefer:
 - Compute: `synapse_list_compute_nodes`, `synapse_reserve_gpus`, `synapse_get_node_access_bundle`
 - Comments: `synapse_add_comment`, `synapse_get_comments`
 - Literature: `synapse_search_papers`, `synapse_read_paper_brief`, `synapse_read_paper_head`, `synapse_read_paper_section`, `synapse_read_paper_full`, `synapse_add_related_work`, `synapse_get_related_works`
-- Synthesis: `synapse_save_project_synthesis`, `synapse_complete_task`
+- Synthesis: `synapse_save_project_synthesis` (saving also completes and clears active synthesis work)
 
 When adding tools, prefer the declarative registries:
 
@@ -121,7 +121,7 @@ Research projects can enable the autonomous loop through `autonomousLoopEnabled`
 ## Insights, Documents, And Comments
 
 - `Insights` is the project-level synthesis surface.
-- `synthesis_refresh_requested` should lead the agent to call `synapse_save_project_synthesis`, then `synapse_complete_task` with `taskType: "synthesis"`.
+- `synthesis_refresh_requested` should lead the agent to read existing synthesis, save only if new experiment results need analysis, and rely on `synapse_save_project_synthesis` to complete and clear active synthesis work.
 - Active synthesis work should mark Insights as working, not the Documents sidebar.
 - Experiment result docs are project-scoped and soft-linked by `<!-- synapse:experiment:<experimentUuid> -->`.
 - A soft-linked result document should link back to the corresponding experiment detail panel.

@@ -15,7 +15,7 @@ Tool availability is enforced server-side by the agent's Synapse roles. Public r
 | `synapse_checkin` | Agent check-in. Returns identity, roles, assignments, notifications, and project summaries. |
 | `synapse_list_research_projects` | List visible research projects. |
 | `synapse_get_research_project` | Get project details. |
-| `synapse_get_project_full_context` | Get the canonical project context snapshot: questions, experiments, related-works count, synthesis hints, and compute availability summary. |
+| `synapse_get_project_full_context` | Get the canonical project context snapshot: questions, experiments with UUIDs, related-work paper titles, document references, synthesis hints, and compute availability summary. |
 | `synapse_get_activity` | Get the project activity stream. |
 | `synapse_get_documents` | List project documents. |
 | `synapse_get_document` | Read a document in full. |

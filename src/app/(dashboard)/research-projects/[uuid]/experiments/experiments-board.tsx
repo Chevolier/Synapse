@@ -474,7 +474,11 @@ export function ExperimentsBoard({
   }, [detailPanelWidth, getDetailPanelMaxWidth, getPlanPanelMaxWidth, planPanelOpen, planPanelWidth]);
 
   async function handleAssign(experimentUuid: string) {
-    const assigneeUuid = assignments[experimentUuid];
+    // Fall back to the currently-assigned agent when the dropdown hasn't
+    // been touched — reassigning to the same agent is a legitimate "wake
+    // them again" action and should re-fire the task_assigned notification.
+    const currentAssignee = experiments.find((e) => e.uuid === experimentUuid)?.assignee?.uuid;
+    const assigneeUuid = assignments[experimentUuid] || currentAssignee;
     if (!assigneeUuid) return;
 
     await fetch(`/api/experiments/${experimentUuid}`, {

@@ -667,15 +667,26 @@ export function ResearchQuestionsBoard({
               ) : (
                 <div className="space-y-3">
                   {selectedExperiments.map((experiment) => (
-                    <div key={experiment.uuid} className="rounded-2xl border border-border bg-background px-4 py-3">
+                    <button
+                      type="button"
+                      key={experiment.uuid}
+                      onClick={() =>
+                        router.push(
+                          `/research-projects/${projectUuid}/experiments?selected=${experiment.uuid}`,
+                        )
+                      }
+                      className="group w-full rounded-2xl border border-border bg-background px-4 py-3 text-left transition-colors hover:border-primary/40 hover:bg-secondary/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-foreground truncate">{experiment.title}</p>
+                        <p className="truncate text-sm font-medium text-foreground group-hover:text-primary">
+                          {experiment.title}
+                        </p>
                         <Badge variant="outline" className="shrink-0">{statusLabelForExperiment(t, experiment)}</Badge>
                       </div>
                       {experiment.assignee ? (
                         <p className="mt-1 text-xs text-muted-foreground">{experiment.assignee.name}</p>
                       ) : null}
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}

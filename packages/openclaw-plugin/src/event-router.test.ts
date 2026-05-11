@@ -81,11 +81,9 @@ describe("SynapseEventRouter", () => {
     expect(prompt).toContain("Create and maintain a todo list");
     expect(prompt).toContain("synapse_list_compute_nodes");
     expect(prompt).toContain("synapse_report_experiment_progress");
-    expect(prompt).toContain("self-contained cron monitoring script");
-    expect(prompt).toContain("cron job (every 30 minutes)");
-    expect(prompt).toContain("Detect when the experiment finishes");
-    expect(prompt).toContain("Remove the cron job itself");
-    expect(prompt).toContain("must be fully self-contained");
+    expect(prompt).toContain("set up a cron job to monitor the work");
+    expect(prompt).toContain("extract key metrics");
+    expect(prompt).toContain("remove cron job");
     expect(prompt).toContain("run Python in unbuffered mode");
     expect(prompt).toContain("python -u");
     expect(prompt).toContain("PYTHONUNBUFFERED=1");
@@ -171,7 +169,7 @@ describe("SynapseEventRouter", () => {
     const [prompt, metadata] = triggerAgent.mock.calls[0];
     expect(prompt).toContain("Autonomous research loop triggered");
     expect(prompt).toContain("synapse_propose_experiment");
-    expect(prompt).toContain("Create a todo list");
+    expect(prompt).toContain("review all project details");
     expect(prompt).toContain("once per independent run");
     expect(metadata).toMatchObject({
       action: "autonomous_loop_triggered",
@@ -215,7 +213,11 @@ describe("SynapseEventRouter", () => {
     const [prompt, metadata] = triggerAgent.mock.calls[0];
     expect(prompt).toContain("Project insights synthesis requested");
     expect(prompt).toContain("synapse_save_project_synthesis");
-    expect(prompt).toContain('taskType "synthesis"');
+    expect(prompt).toContain("already covers all completed experiment results");
+    // synapse_save_project_synthesis now clears the active synthesis task
+    // itself; the prompt should NOT instruct the agent to call
+    // synapse_complete_task for synthesis anymore.
+    expect(prompt).not.toContain("synapse_complete_task");
     expect(metadata).toMatchObject({
       action: "synthesis_refresh_requested",
       projectUuid: "project-1",

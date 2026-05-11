@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import { ImageOff } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -130,6 +131,49 @@ function ChartBlock({ raw, chartType }: { raw: string; chartType?: string }) {
   );
 }
 
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const [failed, setFailed] = useState(false);
+  const safeAlt = alt || "";
+  return (
+    <span className="my-4 block">
+      {failed ? (
+        <span className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+          <ImageOff className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="flex flex-col gap-0.5">
+            <span className="font-medium text-foreground">
+              {safeAlt || "Image unavailable"}
+            </span>
+            {src ? (
+              <a
+                href={src}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                {src}
+              </a>
+            ) : null}
+          </span>
+        </span>
+      ) : (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={safeAlt}
+            className="max-w-full rounded-lg border border-border"
+            loading="lazy"
+            onError={() => setFailed(true)}
+          />
+          {safeAlt ? (
+            <span className="mt-1 block text-center text-xs text-muted-foreground">{safeAlt}</span>
+          ) : null}
+        </>
+      )}
+    </span>
+  );
+}
+
 export function RichMarkdown({ children }: { children: string }) {
   return (
     <ReactMarkdown
@@ -213,13 +257,7 @@ export function RichMarkdown({ children }: { children: string }) {
           return <td className="px-4 py-2.5 text-foreground border-b border-border/30">{tdChildren}</td>;
         },
         img({ src, alt }) {
-          return (
-            <span className="my-4 block">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt={alt || ""} className="max-w-full rounded-lg border border-border" loading="lazy" />
-              {alt && <span className="mt-1 block text-center text-xs text-muted-foreground">{alt}</span>}
-            </span>
-          );
+          return <MarkdownImage src={typeof src === "string" ? src : undefined} alt={alt} />;
         },
       }}
     >
