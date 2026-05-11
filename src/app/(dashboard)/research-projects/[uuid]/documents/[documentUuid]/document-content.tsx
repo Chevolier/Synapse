@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { ImagePlus, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { RichMarkdown } from "@/components/rich-markdown";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,79 @@ export function DocumentContent({ documentUuid, projectUuid, initialContent, doc
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(initialContent);
   const [isPending, startTransition] = useTransition();
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function insertAtCursor(snippet: string) {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setEditContent((current) => current + snippet);
+      return;
+    }
+    const start = textarea.selectionStart ?? editContent.length;
+    const end = textarea.selectionEnd ?? editContent.length;
+    const next = editContent.slice(0, start) + snippet + editContent.slice(end);
+    setEditContent(next);
+    // Restore caret after React state flushes
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        const pos = start + snippet.length;
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(pos, pos);
+      }
+    });
+  }
+
+  async function uploadImageFile(file: File) {
+    if (!file.type.startsWith("image/")) {
+      setUploadError(t("documents.imageUploadInvalidType"));
+      return;
+    }
+    setUploadError(null);
+    setIsUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch(`/api/documents/${documentUuid}/images`, {
+        method: "POST",
+        body: form,
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) {
+        const detail =
+          json?.error?.message ||
+          (typeof json?.error === "string" ? json.error : null) ||
+          t("documents.imageUploadFailed");
+        setUploadError(detail);
+        return;
+      }
+      const altBase = file.name.replace(/\.[^.]+$/, "").replace(/[\[\]()]/g, " ").trim() || "image";
+      const snippet = `\n\n![${altBase}](${json.data.url})\n\n`;
+      insertAtCursor(snippet);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : t("documents.imageUploadFailed"));
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  async function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = Array.from(event.clipboardData?.items ?? []);
+    const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"));
+    if (!imageItem) return;
+    event.preventDefault();
+    const file = imageItem.getAsFile();
+    if (file) await uploadImageFile(file);
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLTextAreaElement>) {
+    const file = event.dataTransfer?.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    event.preventDefault();
+    await uploadImageFile(file);
+  }
 
   // Check if content is TSV tabular data (experiment results log)
   const tsvData = useMemo(() => {
@@ -137,12 +211,55 @@ export function DocumentContent({ documentUuid, projectUuid, initialContent, doc
       </div>
 
       {isEditing ? (
-        <textarea
-          value={editContent}
-          onChange={(e) => setEditContent(e.target.value)}
-          className="h-full w-full resize-none rounded-lg border border-border bg-background p-4 font-mono text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          placeholder={t("documents.documentContent")}
-        />
+        <div className="flex h-full flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="border-border"
+            >
+              {isUploading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <ImagePlus className="mr-2 h-4 w-4" />
+              )}
+              {t("documents.insertImage")}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {t("documents.imagePasteHint")}
+            </span>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) await uploadImageFile(file);
+            }}
+          />
+          <textarea
+            ref={textareaRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onPaste={handlePaste}
+            onDragOver={(event) => {
+              if (Array.from(event.dataTransfer?.items ?? []).some((i) => i.kind === "file")) {
+                event.preventDefault();
+              }
+            }}
+            onDrop={handleDrop}
+            className="h-full w-full resize-none rounded-lg border border-border bg-background p-4 font-mono text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            placeholder={t("documents.documentContent")}
+          />
+          {uploadError ? (
+            <p className="text-xs text-destructive">{uploadError}</p>
+          ) : null}
+        </div>
       ) : tsvData ? (
         <TsvTable headers={tsvData.headers} rows={tsvData.rows} />
       ) : (

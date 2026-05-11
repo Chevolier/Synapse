@@ -177,7 +177,7 @@ export function registerComputeTools(server: McpServer, auth: AgentAuthContext) 
   server.registerTool(
     "synapse_get_experiment",
     {
-      description: "Get full details for a single experiment, including any inherited parent-question context.",
+      description: "Get full details for a single experiment, including inherited parent-question context and a projectExperimentContext summary that tells callers whether this is the very first experiment on the project.",
       inputSchema: z.object({
         experimentUuid: z.string(),
       }),
@@ -188,8 +188,35 @@ export function registerComputeTools(server: McpServer, auth: AgentAuthContext) 
         return { content: [{ type: "text", text: "Experiment not found" }], isError: true };
       }
 
+      // Count sibling experiments on the same project (excluding this one) so
+      // callers — notably the OpenClaw wake prompt — can decide whether to
+      // inject the "first experiment" foundational-setup guidance.
+      const [priorCompletedCount, priorAnyCount] = await Promise.all([
+        prisma.experiment.count({
+          where: {
+            companyUuid: auth.companyUuid,
+            researchProjectUuid: experiment.researchProjectUuid,
+            status: "completed",
+            NOT: { uuid: experiment.uuid },
+          },
+        }),
+        prisma.experiment.count({
+          where: {
+            companyUuid: auth.companyUuid,
+            researchProjectUuid: experiment.researchProjectUuid,
+            NOT: { uuid: experiment.uuid },
+          },
+        }),
+      ]);
+
+      const projectExperimentContext = {
+        isFirstExperiment: priorAnyCount === 0,
+        priorCompletedCount,
+        priorAnyCount,
+      };
+
       return {
-        content: [{ type: "text", text: JSON.stringify({ experiment }, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify({ experiment, projectExperimentContext }, null, 2) }],
       };
     },
   );

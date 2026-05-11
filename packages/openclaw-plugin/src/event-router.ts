@@ -58,6 +58,24 @@ interface RepoAccessDetail {
   baseBranch?: string | null;
 }
 
+// Shared guidance: OpenClaw wakes are expensive (each one spawns an isolated
+// Claude Code session). Long-running research work — experiment execution,
+// paper search, deep research reports, synthesis — should be delegated to a
+// sub-agent immediately so the main turn finishes promptly and the next wake
+// isn't blocked.
+const SUBAGENT_DISPATCH_INSTRUCTION =
+  "IMMEDIATE DISPATCH: Before doing any research work yourself, spawn a sub-agent via the Agent tool (subagent_type: \"general-purpose\") and hand off ALL of the work below to it. Pass the full task context (entity UUIDs, project UUID, the instructions in this prompt) into the sub-agent's prompt. After dispatch, return and end your turn promptly — do NOT wait for the sub-agent to finish. The sub-agent is responsible for executing the Synapse MCP tool calls and completing the task.";
+
+// Guidance for the FIRST experiment in a project: foundational work that
+// every subsequent experiment depends on. Only injected when Synapse has
+// determined there is no prior experiment history on the project.
+const FIRST_EXPERIMENT_BEST_PRACTICE =
+  "FIRST EXPERIMENT — FOUNDATIONAL SETUP (this is the first experiment on this project):\n" +
+  "  1. Prepare/normalize the raw data into a single canonical format that every future experiment will consume. Commit the data-prep scripts to the repo (if one is configured).\n" +
+  "  2. Establish a baseline — run the simplest reasonable model/approach end-to-end and record its metrics via synapse_create_baseline so subsequent experiments can compare against it.\n" +
+  "  3. Build the evaluation script that future experiments will call. Commit it alongside the data-prep scripts.\n" +
+  "  4. If the project has a GitHub repo configured, commit steps 1-3 onto the base branch (or onto a per-experiment branch that is then merged back to the base branch). Every subsequent experiment must branch from the base branch so it inherits the data-prep + eval script.";
+
 export class SynapseEventRouter {
   private readonly mcpClient: SynapseMcpClient;
   private readonly config: SynapsePluginConfig;
@@ -265,12 +283,17 @@ export class SynapseEventRouter {
     let experiment: ExperimentDetail | null = null;
     let project: ResearchProjectDetail | null = null;
     let repoAccess: RepoAccessDetail | null = null;
+    let projectExperimentContext: { isFirstExperiment: boolean } | null = null;
 
     try {
       const result = await this.mcpClient.callTool("synapse_get_experiment", {
         experimentUuid: n.entityUuid,
-      }) as { experiment?: ExperimentDetail } | null;
+      }) as {
+        experiment?: ExperimentDetail;
+        projectExperimentContext?: { isFirstExperiment: boolean };
+      } | null;
       experiment = result?.experiment ?? null;
+      projectExperimentContext = result?.projectExperimentContext ?? null;
     } catch (err) {
       this.logger.warn(`Failed to fetch experiment detail for wake prompt: ${err}`);
     }
@@ -380,12 +403,18 @@ Base branch: ${repoAccess.baseBranch ?? "main"}`;
 
     steps.push(`${stepNum++}. Call synapse_submit_experiment_results with experimentUuid "${experimentUuid}"${hasRepo ? ". Include experimentBranch and commitSha if you pushed code" : ""} to complete the experiment. This also releases the reserved GPUs. (Skip this step if a cron script was set up — the cron handles submission.)`);
 
+    const firstExperimentSection = projectExperimentContext?.isFirstExperiment
+      ? `\n${FIRST_EXPERIMENT_BEST_PRACTICE}\n`
+      : "";
+
     const prompt = `[Synapse] Experiment assigned: ${n.entityTitle}
+
+${SUBAGENT_DISPATCH_INSTRUCTION}
 
 PRIORITY: The project description (Brief) below contains directives from the human researcher. These take the HIGHEST priority — if any instruction below conflicts with the project description, follow the project description.
 
 ${context}${description}${githubSection}
-
+${firstExperimentSection}
 Default steps (override with project description directives where applicable):
 ${steps.join("\n")}`;
 
@@ -475,6 +504,8 @@ Proposed experiments will enter "pending_review" status and require human approv
 
     const prompt = `[Synapse] Project insights synthesis requested for project "${n.entityTitle}" (projectUuid: ${projectUuid}).
 
+${SUBAGENT_DISPATCH_INSTRUCTION}
+
 IMPORTANT: You MUST save the analysis back to Synapse using synapse_save_project_synthesis. Do NOT just output text.
 
 You may ONLY use these Synapse tools for this task:
@@ -507,6 +538,8 @@ ${n.message}`;
     const hasCustomPrompt = n.message !== SynapseEventRouter.DEFAULT_DEEP_RESEARCH_MSG;
 
     const basePrompt = `[Synapse] Deep research literature review requested for project (projectUuid: ${projectUuid}).
+
+${SUBAGENT_DISPATCH_INSTRUCTION}
 
 IMPORTANT: You MUST save the report back to Synapse using synapse_save_deep_research_report. Do NOT just output text — the report must be saved via the tool call.
 
