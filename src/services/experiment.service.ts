@@ -1719,10 +1719,11 @@ export async function completeExperiment(input: {
     context: "experiment completion",
   });
 
-  // Full Auto mode: re-fire task_assigned for every pending_start experiment
+  // Autonomous loop: re-fire task_assigned for every pending_start experiment
   // already assigned to the loop agent, so the freed GPU can pick up queued
-  // work. Otherwise queued experiments sit idle because task_assigned was only
-  // delivered once at propose time.
+  // work. Applies in both full_auto and human_review modes — task_assigned is
+  // only delivered once at original assignment time, so queued experiments
+  // would otherwise sit idle.
   try {
     await reNotifyQueuedExperiments({
       companyUuid: input.companyUuid,
@@ -1745,15 +1746,10 @@ async function reNotifyQueuedExperiments(input: {
       name: true,
       autonomousLoopEnabled: true,
       autonomousLoopAgentUuid: true,
-      autonomousLoopMode: true,
     },
   });
 
-  if (
-    !project?.autonomousLoopEnabled ||
-    !project.autonomousLoopAgentUuid ||
-    project.autonomousLoopMode !== "full_auto"
-  ) {
+  if (!project?.autonomousLoopEnabled || !project.autonomousLoopAgentUuid) {
     return;
   }
 
