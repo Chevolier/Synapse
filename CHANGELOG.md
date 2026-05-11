@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.7.1] - 2026-05-11
+
+### Added
+- **CC plugin 0.7.0**: full skill rewrite. Sessions skill becomes a 10-hook mechanism manual with local state layout and parallel multi-experiment dispatch. Autonomy skill becomes a Claude-Code-client loop (default full_auto, main agent orchestrates, sub-agents auto-spawn via the Task hook, mutual exclusion with server-side `autonomousLoopEnabled`). Experiments skill/reference gain foundational first-experiment guidance, a detailed execution checklist (tmux + unbuffered + PEM + repo branch + cron), failure handling, and review-rejection flow. Empty-project onboarding added to top-level, research, experiments, and autonomy skills.
+- **Document image upload (local mode)**: upload and serve images from documents without S3.
+- **Research question → linked experiment deep link**: click-through from a question to its proposed experiment.
+- **First-experiment guidance** in experiment authoring flow.
+- **Compute page per-GPU Release button**: force-clear stuck reservations.
+
+### Changed
+- **Onboarding Step 2 (Claude Code)**: replaces the single `claude mcp add` command with a README-aligned three-block layout — plugin marketplace install, environment variables, and a collapsed manual `.mcp.json` fallback. Matching en/zh i18n.
+- **Settings**: drops the Autonomous Loop and Auto Search cards; adds a synthesis reset control.
+- **Experiments**: clears `liveStatus` when a user manually exits an `in_progress` experiment.
+- **Synthesis refresh**: auto-completes on save and enriches full context.
+- **Reassign button**: falls back to the current assignee when the dropdown is untouched.
+
+### Fixed
+- **Broken image fallback** for document images.
+- **arXiv paper search**: falls back to arXiv on 401 when no DeepXiv token is configured.
+- **Round 2 E2E findings**: UI, locale, MCP cleanup, and paper-search fallback fixes.
+
+### Removed
+- **Agent-teams skill** in the CC plugin (its multi-agent content is merged into the sessions skill).
+- **OpenClaw-specific language** from CC skills.
+
+---
+
 ## [0.6.0] - 2026-04-12
 
 ### Added
