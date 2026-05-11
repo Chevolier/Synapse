@@ -777,6 +777,11 @@ export async function updateExperiment(
     assertTransition(existing.status as ExperimentStatus, data.status);
   }
 
+  // When a manual status transition lands outside in_progress, clear the
+  // live ticker fields — otherwise a card dragged to "completed" keeps
+  // pulsing the running animation and showing the assignee glow.
+  const clearLive = data.status !== undefined && data.status !== "in_progress";
+
   const experiment = await prisma.experiment.update({
     where: { uuid },
     data: {
@@ -789,6 +794,7 @@ export async function updateExperiment(
       ...(data.outcome !== undefined ? { outcome: data.outcome } : {}),
       ...(data.results !== undefined ? { results: jsonInput(data.results) } : {}),
       ...(data.attachments !== undefined ? { attachments: jsonInput(data.attachments) } : {}),
+      ...(clearLive ? { liveStatus: null, liveMessage: null, liveUpdatedAt: new Date() } : {}),
     },
     include: {
       researchQuestion: {

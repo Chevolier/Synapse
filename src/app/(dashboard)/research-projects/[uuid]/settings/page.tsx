@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getServerAuthContext } from "@/lib/auth-server";
 import { prisma } from "@/lib/prisma";
 import { listComputePools } from "@/services/compute.service";
-import { listRealtimeAgentSummaries } from "@/services/agent.service";
 import { ProjectSettingsClient } from "./project-settings-client";
 
 interface PageProps {
@@ -15,7 +14,7 @@ export default async function ProjectSettingsPage({ params }: PageProps) {
 
   const { uuid: projectUuid } = await params;
 
-  const [project, pools, realtimeAgents] = await Promise.all([
+  const [project, pools] = await Promise.all([
     prisma.researchProject.findFirst({
       where: { uuid: projectUuid, companyUuid: auth.companyUuid },
       select: {
@@ -30,11 +29,7 @@ export default async function ProjectSettingsPage({ params }: PageProps) {
         githubToken: true,
         autoSearchActiveAgentUuid: true,
         deepResearchActiveAgentUuid: true,
-        autonomousLoopEnabled: true,
-        autonomousLoopAgentUuid: true,
-        autonomousLoopMode: true,
-        autoSearchEnabled: true,
-        autoSearchAgentUuid: true,
+        synthesisActiveAgentUuid: true,
         experiments: {
           select: { uuid: true, title: true, status: true },
           orderBy: { createdAt: "desc" },
@@ -50,7 +45,6 @@ export default async function ProjectSettingsPage({ params }: PageProps) {
       },
     }),
     listComputePools(auth.companyUuid),
-    listRealtimeAgentSummaries(auth.companyUuid),
   ]);
 
   if (!project) redirect("/research-projects");
@@ -67,11 +61,7 @@ export default async function ProjectSettingsPage({ params }: PageProps) {
     githubConfigured: !!project.githubToken,
     autoSearchActive: !!project.autoSearchActiveAgentUuid,
     deepResearchActive: !!project.deepResearchActiveAgentUuid,
-    autonomousLoopEnabled: project.autonomousLoopEnabled ?? false,
-    autonomousLoopAgentUuid: project.autonomousLoopAgentUuid ?? null,
-    autonomousLoopMode: (project.autonomousLoopMode ?? "human_review") as "human_review" | "full_auto",
-    autoSearchEnabled: project.autoSearchEnabled ?? false,
-    autoSearchAgentUuid: project.autoSearchAgentUuid ?? null,
+    synthesisActive: !!project.synthesisActiveAgentUuid,
     experiments: project.experiments,
     documents: project.documents,
     researchQuestions: project.researchQuestions,
@@ -82,11 +72,6 @@ export default async function ProjectSettingsPage({ params }: PageProps) {
       <ProjectSettingsClient
         project={projectForClient}
         pools={pools.map((p) => ({ uuid: p.uuid, name: p.name }))}
-        realtimeAgents={realtimeAgents.map((agent) => ({
-          uuid: agent.uuid,
-          name: agent.name,
-          type: agent.type,
-        }))}
       />
     </div>
   );
