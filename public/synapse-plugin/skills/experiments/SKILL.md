@@ -58,13 +58,13 @@ If the project has a repo, commit all three onto the base branch (or a per-exper
 5. Reserve compute: optional `synapse_reserve_gpus(...)` or inline via `synapse_start_experiment({ gpuUuids })`
 6. `synapse_start_experiment({ experimentUuid, workingNotes })` — moves to `in_progress`
 7. If remote compute: `synapse_get_node_access_bundle({ experimentUuid, nodeUuid })`, write the returned `privateKeyPemBase64` to a local PEM, `chmod 600`, SSH with the returned host/user/port
-8. If repo-backed: `synapse_get_repo_access` → clone → branch from the experiment's base branch
+8. If repo-backed: `synapse_get_repo_access` → clone → branch from the experiment's base branch (commit + push back to this repo at the end is mandatory)
 9. Run the workload in a persistent remote shell (`tmux`/`screen`) with unbuffered output (`python -u …` or `PYTHONUNBUFFERED=1`) so logs never stall a tool call
 10. Report progress with `synapse_report_experiment_progress` at milestones — `phase` ∈ `setup` | `training` | `evaluation` | `analysis`; `liveStatus` ∈ `checking_resources` | `queuing` | `running`
 11. For long runs (>30 min), schedule periodic progress updates (cron on the remote node, or the main agent polling and calling `synapse_report_experiment_progress` on a timer) so the card never looks dead
 12. Commit code/artifacts to the experiment branch or base branch; capture the commit SHA
 13. Finish with `synapse_submit_experiment_results({ outcome, experimentResults, branch, commitSha })` — `outcome` ∈ `success` | `failure` | `inconclusive`; on failure include the error and partial results
-14. If the flow asks for a dedicated report document: `synapse_save_experiment_report({ experimentUuid, title, content })` — do **not** post a full report as a comment
+14. **Always** follow `synapse_submit_experiment_results` with `synapse_save_experiment_report({ experimentUuid, title, content })` — write a full markdown writeup (objective, methodology, results, analysis, charts where relevant). Do **not** post the report as a comment, and do **not** treat this step as optional even for `failure` / `inconclusive` runs
 15. If revising per reviewer feedback, read the full thread first with `synapse_get_comments({ targetType: "experiment", targetUuid })` before editing the plan
 
 ## Core Rules
@@ -72,6 +72,8 @@ If the project has a repo, commit all three onto the base branch (or a per-exper
 - **Never assume a server-local SSH key path exists.** Always fetch the access bundle and write the PEM locally.
 - **One independent run per experiment card.** Do not bundle comparison runs, ablations, or parameter sweeps into a single experiment — create multiple cards.
 - **Match the project description's language.** If the project brief is in Chinese, write the plan, progress, and report in Chinese.
+- **If the project is repo-backed, you must commit back.** Whenever `synapse_get_repo_access` returns a configured repo, all experiment code, configs, and meaningful artifacts must be committed and pushed to that repo (on the experiment branch or merged to base), and the resulting `branch` + `commitSha` must be passed to `synapse_submit_experiment_results`. Local-only runs without a commit are not acceptable when a repo exists.
+- **Always save an experiment report after submitting results.** Every `synapse_submit_experiment_results` call must be immediately followed by `synapse_save_experiment_report({ experimentUuid, title, content })` with a full markdown writeup. This applies to `success`, `failure`, and `inconclusive` outcomes alike.
 - **Split plan / execution / report tools.** Use `synapse_update_experiment_plan` for plan edits, `synapse_report_experiment_progress` for live status, `synapse_submit_experiment_results` for completion, and `synapse_save_experiment_report` for the dedicated report. Do not substitute with comments.
 - **Revision stays durable.** When a reviewer sends an experiment back, flip to `draft`, revise, then move it back to `pending_review`; leave a reply via `synapse_add_comment` using `@[name](actorType:uuid)` format to notify the reviewer.
 - **Failures are data.** An experiment that crashes or shows a regression is still a valid submission: set `outcome: "failure"` (or `"inconclusive"`) and write up what happened in `experimentResults` and the report.
