@@ -33,7 +33,7 @@ Hand off to:
 If `synapse_get_assigned_experiments` returns empty, do not idle. Ask the user which path:
 
 1. **Execute an approved experiment** — list `pending_start` experiments in the project with `synapse_get_project_full_context` and ask which to start.
-2. **Flesh out a quick idea** — call `synapse_get_project_full_context`, then draft a plan with `synapse_create_experiment` (defaults to `pending_review`, or pass `status: "draft"` to keep refining).
+2. **Flesh out a quick idea** — call `synapse_get_project_full_context`, then draft a plan with `synapse_create_experiment` (defaults to `draft`; run a self-review sub-agent before pushing to `pending_review` per the "Create → Self-Review → Pending Review → Verbal Approve" section below).
 3. **Create the foundational experiment** — if the project has no completed experiments, offer the foundational template below.
 4. **Enter the autonomous loop** — hand off to **[autonomy](../autonomy/SKILL.md)** to propose and auto-dispatch the next experiment.
 
