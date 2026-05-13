@@ -1,6 +1,6 @@
 {
   "name": "@vincentwei1021/synapse-openclaw-plugin",
-  "version": "0.10.24",
+  "version": "0.10.25",
   "description": "OpenClaw plugin for Synapse research orchestration — SSE notifications, MCP tools, experiment lifecycle, autonomous loop",
   "license": "MIT",
   "type": "module",
@@ -20,10 +20,13 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "openclaw": "^2026.5.7",
     "typescript": "^5.9.0"
   },
   "openclaw": {
-    "extensions": ["dist/index.js"]
+    "extensions": [
+      "dist/index.js"
+    ]
   },
   "repository": {
     "type": "git",
@@ -31,7 +34,15 @@
     "directory": "packages/openclaw-plugin"
   },
   "homepage": "https://github.com/Vincentwei1021/Synapse",
-  "keywords": ["openclaw", "synapse", "research", "mcp", "plugin", "agent", "experiments"],
+  "keywords": [
+    "openclaw",
+    "synapse",
+    "research",
+    "mcp",
+    "plugin",
+    "agent",
+    "experiments"
+  ],
   "files": [
     "dist",
     "src",
