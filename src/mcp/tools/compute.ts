@@ -876,7 +876,7 @@ export function registerComputeTools(server: McpServer, auth: AgentAuthContext) 
   server.registerTool(
     "synapse_propose_experiment",
     {
-      description: "Propose one independent experiment run. In Human Review mode, created as 'pending_review' for human approval. In Full Auto mode, created as 'pending_start' and assigned to you for immediate execution. Only usable when autonomous loop is active and you are the assigned agent. Split comparisons, ablations, and repeated runs into separate experiment cards.",
+      description: "Autonomous-loop only: propose one independent experiment run after reviewing project context, synthesis, and compute. Before calling this tool, the autonomous-loop main agent MUST spawn a sub-agent to self-review the proposal text (motivation, hypothesis, method, success criteria, compute fit). Self-review never persists to the database. Human Review mode creates 'pending_review'; Full Auto mode creates 'pending_start' and assigns it to you. For user-directed or terminal-created experiments outside autonomous loop, use synapse_create_experiment instead.",
       inputSchema: z.object({
         researchProjectUuid: z.string(),
         title: z.string(),
