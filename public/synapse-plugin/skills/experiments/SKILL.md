@@ -37,6 +37,52 @@ If `synapse_get_assigned_experiments` returns empty, do not idle. Ask the user w
 3. **Create the foundational experiment** — if the project has no completed experiments, offer the foundational template below.
 4. **Enter the autonomous loop** — hand off to **[autonomy](../autonomy/SKILL.md)** to propose and auto-dispatch the next experiment.
 
+## Create → Self-Review → Pending Review → Verbal Approve
+
+Every agent-created experiment goes through this sequence before reaching `pending_review`.
+
+1. `synapse_create_experiment(...)` — defaults to `draft`. The PostToolUse hook will remind you to run self-review next.
+2. Spawn a self-review sub-agent with the `Task` tool. Use a prompt similar to:
+   ```
+   Self-review experiment <experimentUuid> for project <projectUuid>.
+   Call synapse_get_experiment to read the plan. Then evaluate against the project's evaluationMethods:
+   - Is the objective specific and measurable?
+   - Is the methodology sound and reproducible?
+   - Do the success criteria align with the project's evaluation methods?
+   - Is the compute budget realistic given current availability (synapse_list_compute_nodes)?
+   Return a short verdict: "pass" or a bulleted list of concrete revisions.
+   Do NOT write back to Synapse — your verdict is consumed in-session by the main agent.
+   ```
+3. If the verdict surfaces issues, apply revisions with `synapse_update_experiment_plan({ experimentUuid, ... })`.
+4. `synapse_update_experiment_status({ experimentUuid, status: "pending_review" })` to push the draft into review.
+5. Present the self-review summary and the plan summary to the user in the terminal. Wait for a verbal answer.
+6. **On verbal approve:**
+   ```
+   synapse_review_experiment({
+     experimentUuid,
+     decision: "approved",
+     reviewNote: 'User verbally approved in terminal: "<exact words>"',
+   })
+   ```
+   That call atomically transitions to `pending_start`, writes the activity, and emits `task_assigned` so execution can begin.
+7. **On verbal reject:** summarize the user's revision request in second-person Chinese, including a quoted phrase from the user, and pass it as `reviewNote`:
+   ```
+   synapse_review_experiment({
+     experimentUuid,
+     decision: "rejected",
+     reviewNote: '用户口头要求修改：…（原话："…"）',
+   })
+   ```
+   The review tool writes the comment and emits `experiment_revision_requested` automatically — **do not** also call `synapse_add_comment`.
+8. After a reject, the experiment is back in `draft`. Revise per feedback, run self-review again, then resubmit to `pending_review`.
+9. **Full-auto mode** (set verbally via the `autonomy` skill, lives only in the current CC session): after step 4, skip steps 5–8 and immediately call `synapse_review_experiment` with the fixed full-auto template:
+   ```
+   reviewNote: 'Full-auto session authorized by <ownerName> at <ISO time>. Self-review pass: <key points>.'
+   ```
+   If self-review timed out or errored: `'Self-review skipped: <reason>.'`. Full-auto **never pauses** on advisory self-review output — it only exits on user-stop or hard external errors.
+
+The `synapse_review_experiment` tool requires `admin` or `pi_agent` role. To run verbal-approve flows on Claude Code, configure the CC agent with one of those roles.
+
 ## Foundational First Experiment
 
 If the project has no completed experiments yet, the first experiment is not a normal research run — it is the project's baseline infrastructure. Drive it through three bundled deliverables before any comparison work:
@@ -51,7 +97,7 @@ If the project has a repo, commit all three onto the base branch (or a per-exper
 
 1. `synapse_checkin()` — refresh identity and assignments
 2. Author or fetch the experiment
-   - New plan: `synapse_create_experiment(...)` (defaults to `pending_review`, or `status: "draft"` to keep editing)
+   - New plan: `synapse_create_experiment(...)` (defaults to `draft`; run a self-review sub-agent and revise before pushing to `pending_review` per the section below)
    - Existing assignment: `synapse_get_assigned_experiments()` then `synapse_get_experiment({ experimentUuid })`
 3. If drafting or revising: `synapse_update_experiment_status({ status: "draft", liveStatus: "writing" })` + `synapse_update_experiment_plan(...)`, then `synapse_update_experiment_status({ status: "pending_review" })`
 4. Before execution: `synapse_list_compute_nodes({ onlyAvailable: true, researchProjectUuid })`
