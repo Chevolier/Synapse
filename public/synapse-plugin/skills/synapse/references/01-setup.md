@@ -28,14 +28,9 @@ If you do not have an API key yet:
 
 ## 2. MCP Server Configuration
 
-Synapse MCP uses the HTTP Streamable transport. There are two pieces of configuration that need to agree:
+Synapse MCP uses the HTTP Streamable transport. **Once the Synapse plugin is installed in Claude Code, you do not need to write your own `.mcp.json`** — the plugin bundles one (at `public/synapse-plugin/.mcp.json`) and Claude Code loads it automatically.
 
-1. **`.mcp.json`** at the project root (or global `~/.claude/.mcp.json`) declares the MCP server using env-variable placeholders.
-2. **Env variables** (`SYNAPSE_URL`, `SYNAPSE_API_KEY`) supply the real values at runtime. They live in `~/.claude/settings.json`'s `env` block, in `<project>/.claude/settings.json`'s `env` block, or in your shell environment.
-
-You do **not** put the real URL/key in `.mcp.json` and again in `settings.json`. Pick one place for the env values, leave `.mcp.json` as the placeholder template.
-
-The plugin ships the placeholder template at `public/synapse-plugin/.mcp.json`:
+The bundled file uses env placeholders:
 
 ```json
 {
@@ -51,7 +46,7 @@ The plugin ships the placeholder template at `public/synapse-plugin/.mcp.json`:
 }
 ```
 
-Then add the env values once. Example via `~/.claude/settings.json`:
+You only have to supply the env values, in **one** place. Example via `~/.claude/settings.json`:
 
 ```json
 {
@@ -62,9 +57,15 @@ Then add the env values once. Example via `~/.claude/settings.json`:
 }
 ```
 
-If you prefer to avoid env indirection, you can substitute the values directly into `.mcp.json` (replace `${SYNAPSE_URL}` and `${SYNAPSE_API_KEY}` with the literal strings) — but make sure that file is not committed to git.
+Other equally valid sources for those env values:
+- `<project>/.claude/settings.json`'s `env` block (project scope; per-developer values can go in `.claude/settings.local.json`).
+- Shell environment (`export SYNAPSE_URL=...; export SYNAPSE_API_KEY=...`) before launching Claude Code.
 
-Restart Claude Code after configuration so MCP picks up the new server and the plugin's bash hooks see the env variables.
+The plugin's bash hooks read the same two variables, so one env source covers both the MCP server and the hook scripts.
+
+If you really do need to override the bundled MCP entry (e.g. to add `X-Synapse-Project` filter headers for one project), drop a project-root `.mcp.json` with a `synapse` entry — Claude Code project-level config takes precedence.
+
+Restart Claude Code after editing env values so MCP picks them up.
 
 ### Optional: Project Filtering
 

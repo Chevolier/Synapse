@@ -31,15 +31,14 @@ This skill does not cover day-to-day research or experiment execution. Hand off 
 
 1. Get an API key from the Synapse **Agents** page.
 2. Set `SYNAPSE_URL` and `SYNAPSE_API_KEY` **in one place** (see "Where the credentials live" below).
-3. Make sure your project has a `.mcp.json` that references those env variables (the plugin ships a template — see below).
-4. Restart Claude Code so it reloads MCP config and re-evaluates env.
-5. Call `synapse_checkin()` and confirm expected roles/tools are visible.
+3. Restart Claude Code so it reloads MCP config and re-evaluates env.
+4. Call `synapse_checkin()` and confirm expected roles/tools are visible.
+
+The plugin already ships its own `.mcp.json` (at `public/synapse-plugin/.mcp.json` inside the plugin bundle), so you do **not** need to copy a `.mcp.json` into your project. Installing the plugin makes the MCP server available; the only thing you supply is the env values.
 
 ## Where The Credentials Live (Important)
 
-You only put the **real** API key and URL in **one** location. `.mcp.json` references env variables; the plugin's bash hooks also read env variables. They share the same source.
-
-Pick one of:
+The plugin's bundled `.mcp.json` carries `${SYNAPSE_URL}` and `${SYNAPSE_API_KEY}` placeholders. Claude Code substitutes them at MCP-server-startup time from your env. You only put the real values in **one** location:
 
 - **User-level Claude Code settings** — `~/.claude/settings.json`'s `env` block. Best for personal use across projects.
   ```json
@@ -50,16 +49,14 @@ Pick one of:
     }
   }
   ```
-- **Project-level Claude Code settings** — `<project>/.claude/settings.json`'s `env` block. Best when several teammates share a project but each needs their own key (commit a `.claude/settings.local.json` with personal values; never commit the key).
+- **Project-level Claude Code settings** — `<project>/.claude/settings.json`'s `env` block. Best when several teammates share a project but each needs their own key (use `.claude/settings.local.json` for personal values; never commit the key).
 - **Shell environment** — `export SYNAPSE_URL=...; export SYNAPSE_API_KEY=...` in your shell rc, before launching Claude Code. Ad-hoc only.
 
-You do **not** need to put the literal URL/key in `.mcp.json`. `.mcp.json` only carries `${SYNAPSE_URL}` and `${SYNAPSE_API_KEY}` placeholders — Claude Code substitutes them at MCP-server-startup time from whichever env source above is in play.
+The plugin's bash hooks (`SessionStart`, `PostToolUse`, etc.) also read the same two env variables, so a single env source covers both the MCP server and the hook scripts.
 
-If you copy the real key into `.mcp.json` (instead of using `${...}`), make sure that file is **not** committed.
+## Plugin's Own `.mcp.json` (For Reference)
 
-## Project-Level MCP Template
-
-The plugin ships a project-level template at `public/synapse-plugin/.mcp.json`. The expected content is:
+You don't need to edit or copy this file — the plugin ships and loads it automatically:
 
 ```json
 {
@@ -75,7 +72,7 @@ The plugin ships a project-level template at `public/synapse-plugin/.mcp.json`. 
 }
 ```
 
-Drop this at the project root as `.mcp.json` (or rely on the plugin's bundled copy under `public/synapse-plugin/.mcp.json` if your workflow already loads from there).
+If you have a strong reason to override (e.g. add `X-Synapse-Project` filter headers for one project), you can add a `.mcp.json` at your project root that defines a different `synapse` server entry — Claude Code project-level config takes precedence.
 
 ## Roles That Matter
 
