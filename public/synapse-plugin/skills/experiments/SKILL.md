@@ -25,6 +25,7 @@ Stay inside this skill when the work is about:
 
 Hand off to:
 - **[research](../research/SKILL.md)** for literature and deep research
+- **[documents](../documents/SKILL.md)** for Markdown report figures, `chart` blocks, and Synapse-hosted image uploads
 - **[autonomy](../autonomy/SKILL.md)** to drive the CC-client autonomous loop when there is nothing to execute and you need to propose the next experiment
 - **[sessions](../sessions/SKILL.md)** when running multiple experiments in parallel via sub-agents
 
@@ -110,7 +111,7 @@ If the project has a repo, commit all three onto the base branch (or a per-exper
 11. For long runs (>30 min), the main agent must schedule its own monitor heartbeat with `CronCreate` so the experiment card never looks dead. See "Monitoring Long Runs With CronCreate" below for the exact pattern.
 12. Commit code/artifacts to the experiment branch or base branch; capture the commit SHA
 13. Finish with `synapse_submit_experiment_results({ outcome, experimentResults, branch, commitSha })` — `outcome` ∈ `success` | `failure` | `inconclusive`; on failure include the error and partial results
-14. **Always** follow `synapse_submit_experiment_results` with `synapse_save_experiment_report({ experimentUuid, title, content })` — write a full markdown writeup (objective, methodology, results, analysis, charts where relevant). Do **not** post the report as a comment, and do **not** treat this step as optional even for `failure` / `inconclusive` runs
+14. **Always** follow `synapse_submit_experiment_results` with `synapse_save_experiment_report({ experimentUuid, title, content })` — write a full markdown writeup (objective, methodology, results, analysis, charts where relevant). For generated plots, use **[documents](../documents/SKILL.md)** and upload each figure with `synapse_upload_document_image({ experimentUuid, filename, mimeType, base64Content })` before embedding the returned `/api/documents/.../images/...` URL. Do **not** post the report as a comment, and do **not** treat this step as optional even for `failure` / `inconclusive` runs
 15. If revising per reviewer feedback, read the full thread first with `synapse_get_comments({ targetType: "experiment", targetUuid })` before editing the plan
 
 ## Core Rules

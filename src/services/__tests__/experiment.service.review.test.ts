@@ -19,6 +19,7 @@ const mockPrisma = vi.hoisted(() => ({
   },
   document: {
     findFirst: vi.fn(),
+    create: vi.fn(),
   },
   user: {
     findUnique: vi.fn(),
@@ -55,6 +56,7 @@ vi.mock("@/lib/uuid-resolver", () => ({
 import {
   resetExperimentToPendingStart,
   requestExperimentPlan,
+  getOrCreateExperimentReportDocumentForUpload,
   reviewExperiment,
   startExperiment,
   updateExperiment,
@@ -441,6 +443,77 @@ describe("requestExperimentPlan", () => {
         projectName: "Project Plan",
       }),
     );
+  });
+});
+
+describe("getOrCreateExperimentReportDocumentForUpload", () => {
+  it("creates a marker-only experiment result document when none exists yet", async () => {
+    const existing = makeExperiment({
+      status: "completed",
+      assigneeType: "agent",
+      assigneeUuid: "a-1",
+    });
+    const createdAt = new Date("2026-05-14T00:00:00Z");
+
+    mockPrisma.experiment.findFirst.mockResolvedValue(existing);
+    mockPrisma.document.findFirst.mockResolvedValue(null);
+    mockPrisma.document.create.mockResolvedValue({
+      uuid: "doc-created",
+      type: "experiment_result",
+      title: "Experiment Result · E1",
+      content: "<!-- synapse:experiment:exp-1 -->",
+      version: 1,
+      experimentDesignUuid: null,
+      createdByUuid: "a-1",
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    const document = await getOrCreateExperimentReportDocumentForUpload({
+      companyUuid: COMPANY,
+      actorType: "agent",
+      actorUuid: "a-1",
+      experimentUuid: "exp-1",
+    });
+
+    expect(document.uuid).toBe("doc-created");
+    expect(mockPrisma.document.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyUuid: COMPANY,
+          researchProjectUuid: "proj-1",
+          type: "experiment_result",
+          title: "Experiment Result · E1",
+          content: "<!-- synapse:experiment:exp-1 -->",
+          createdByUuid: "a-1",
+        }),
+      }),
+    );
+  });
+
+  it("reuses an existing experiment result document when the marker exists", async () => {
+    const existing = makeExperiment({
+      status: "completed",
+      assigneeType: "agent",
+      assigneeUuid: "a-1",
+    });
+
+    mockPrisma.experiment.findFirst.mockResolvedValue(existing);
+    mockPrisma.document.findFirst.mockResolvedValue({
+      uuid: "doc-existing",
+      title: "Existing report",
+      version: 3,
+    });
+
+    const document = await getOrCreateExperimentReportDocumentForUpload({
+      companyUuid: COMPANY,
+      actorType: "agent",
+      actorUuid: "a-1",
+      experimentUuid: "exp-1",
+    });
+
+    expect(document.uuid).toBe("doc-existing");
+    expect(mockPrisma.document.create).not.toHaveBeenCalled();
   });
 });
 

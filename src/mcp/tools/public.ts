@@ -8,6 +8,7 @@ import type { AgentAuthContext } from "@/types/auth";
 import * as researchProjectService from "@/services/research-project.service";
 import * as researchQuestionService from "@/services/research-question.service";
 import * as documentService from "@/services/document.service";
+import * as experimentService from "@/services/experiment.service";
 import { writeDocumentImage, DOCUMENT_IMAGE_ALLOWED_MIME } from "@/services/document-image.service";
 import * as activityService from "@/services/activity.service";
 import * as commentService from "@/services/comment.service";
@@ -636,9 +637,10 @@ Work style: rigorous, efficient, quality-focused`,
     "synapse_upload_document_image",
     {
       description:
-        "Upload a figure/image into a document's local image store and get back a Synapse-hosted URL for embedding in Markdown (e.g. ![alt](/api/documents/:uuid/images/...)). Use this for any figure you render in an experiment report or document — never embed third-party image-host links (catbox, litterbox, imgur, etc.), because they expire and are not reliably reachable from end users' browsers.",
+        "Upload a figure/image into a document's local image store and get back a Synapse-hosted URL for embedding in Markdown (e.g. ![alt](/api/documents/:uuid/images/...)). Provide either documentUuid for an existing document or experimentUuid to create/reuse that experiment's result document before uploading. Use this for any figure you render in an experiment report or document — never embed third-party image-host links (catbox, litterbox, imgur, etc.), because they expire and are not reliably reachable from end users' browsers.",
       inputSchema: z.object({
-        documentUuid: z.string().describe("Document UUID the image belongs to"),
+        documentUuid: z.string().optional().describe("Existing Document UUID the image belongs to. Mutually exclusive with experimentUuid."),
+        experimentUuid: z.string().optional().describe("Experiment UUID. Creates or reuses the dedicated experiment result document before uploading. Mutually exclusive with documentUuid."),
         filename: z.string().describe("Original file name, used for extension and sanitized server-side (e.g. 'cross-benchmark-summary.png')"),
         mimeType: z
           .enum(["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"])
@@ -646,13 +648,39 @@ Work style: rigorous, efficient, quality-focused`,
         base64Content: z.string().describe("Base64-encoded image bytes (no data: prefix)"),
       }),
     },
-    async ({ documentUuid, filename, mimeType, base64Content }) => {
-      const doc = await documentService.getDocumentByUuid(auth.companyUuid, documentUuid);
-      if (!doc) {
-        return { content: [{ type: "text", text: "Document not found" }], isError: true };
+    async ({ documentUuid, experimentUuid, filename, mimeType, base64Content }) => {
+      if ((documentUuid && experimentUuid) || (!documentUuid && !experimentUuid)) {
+        return { content: [{ type: "text", text: "Provide exactly one of documentUuid or experimentUuid" }], isError: true };
+      }
+
+      let resolvedDocumentUuid = documentUuid;
+      if (resolvedDocumentUuid) {
+        const doc = await documentService.getDocumentByUuid(auth.companyUuid, resolvedDocumentUuid);
+        if (!doc) {
+          return { content: [{ type: "text", text: "Document not found" }], isError: true };
+        }
+      } else if (experimentUuid) {
+        try {
+          const doc = await experimentService.getOrCreateExperimentReportDocumentForUpload({
+            companyUuid: auth.companyUuid,
+            actorType: auth.type,
+            actorUuid: auth.actorUuid,
+            ownerUuid: auth.ownerUuid,
+            experimentUuid,
+          });
+          resolvedDocumentUuid = doc.uuid;
+        } catch (error) {
+          return {
+            content: [{ type: "text", text: error instanceof Error ? error.message : "Failed to prepare experiment report document" }],
+            isError: true,
+          };
+        }
       }
       if (!DOCUMENT_IMAGE_ALLOWED_MIME.has(mimeType)) {
         return { content: [{ type: "text", text: `Unsupported mimeType: ${mimeType}` }], isError: true };
+      }
+      if (!resolvedDocumentUuid) {
+        return { content: [{ type: "text", text: "Document not found" }], isError: true };
       }
 
       let buffer: Buffer;
@@ -665,13 +693,13 @@ Work style: rigorous, efficient, quality-focused`,
       try {
         const result = await writeDocumentImage({
           companyUuid: auth.companyUuid,
-          documentUuid,
+          documentUuid: resolvedDocumentUuid,
           originalName: filename,
           mimeType,
           data: buffer,
         });
         return {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify({ ...result, documentUuid: resolvedDocumentUuid }, null, 2) }],
         };
       } catch (error) {
         return {

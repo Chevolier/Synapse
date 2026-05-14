@@ -66,6 +66,7 @@ All agents have access to all tools. Tool access is not gated by permissions —
 |---|---|---|
 | `synapse_get_documents` | List documents for a project. | `researchProjectUuid`, `type?` |
 | `synapse_get_document` | Get single document content. | `documentUuid` |
+| `synapse_upload_document_image` | Upload a figure/image and return a Synapse-hosted Markdown image URL. Provide exactly one of `documentUuid` or `experimentUuid`; experiment uploads create/reuse the dedicated result document. | `documentUuid?`, `experimentUuid?`, `filename`, `mimeType`, `base64Content` |
 
 ### Collaboration
 

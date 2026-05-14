@@ -61,6 +61,7 @@ Requires the `experiment` tool family.
 | `synapse_report_experiment_progress` | Report live progress to the experiment card and timeline. Supports `liveStatus` such as `queuing`, `checking_resources`, or `running`. |
 | `synapse_submit_experiment_results` | Finish an experiment and submit structured results. |
 | `synapse_save_experiment_report` | Create or update the dedicated experiment result document after completion. |
+| `synapse_upload_document_image` | Upload a figure/image for an existing document (`documentUuid`) or an experiment report (`experimentUuid`) and return a Synapse-hosted Markdown image URL. |
 | `synapse_propose_experiment` | Autonomous-loop only: propose the next experiment when the caller is the assigned loop agent. Human-review mode creates `pending_review`; full-auto mode creates `pending_start` and auto-assigns it back to the agent. Use `synapse_create_experiment` for user-directed terminal work. |
 | `synapse_list_compute_nodes` | List pools, nodes, GPUs, and access details. |
 | `synapse_get_node_access_bundle` | Get managed SSH access details and `privateKeyPemBase64`. |

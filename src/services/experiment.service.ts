@@ -342,6 +342,63 @@ export async function saveExperimentReportDocument(input: {
   };
 }
 
+export async function getOrCreateExperimentReportDocumentForUpload(input: {
+  companyUuid: string;
+  actorType: string;
+  actorUuid: string;
+  ownerUuid?: string | null;
+  experimentUuid: string;
+}) {
+  const experiment = await prisma.experiment.findFirst({
+    where: { uuid: input.experimentUuid, companyUuid: input.companyUuid },
+    select: {
+      uuid: true,
+      title: true,
+      researchProjectUuid: true,
+      assigneeType: true,
+      assigneeUuid: true,
+    },
+  });
+
+  if (!experiment) {
+    throw new Error("Experiment not found");
+  }
+
+  assertAssignedActorAccess(experiment, input.actorType, input.actorUuid, "complete", input.ownerUuid);
+
+  const marker = buildExperimentDocumentMarker(experiment.uuid);
+  const existing = await prisma.document.findFirst({
+    where: {
+      companyUuid: input.companyUuid,
+      researchProjectUuid: experiment.researchProjectUuid,
+      type: EXPERIMENT_RESULT_DOCUMENT_TYPE,
+      content: {
+        contains: marker,
+      },
+    },
+    select: { uuid: true, title: true, version: true },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  const created = await createDocument({
+    companyUuid: input.companyUuid,
+    researchProjectUuid: experiment.researchProjectUuid,
+    type: EXPERIMENT_RESULT_DOCUMENT_TYPE,
+    title: buildExperimentDocumentTitle(experiment.title),
+    content: marker,
+    createdByUuid: input.actorUuid,
+  });
+
+  return {
+    uuid: created.uuid,
+    title: created.title,
+    version: created.version,
+  };
+}
+
 function assertTransition(from: ExperimentStatus, to: ExperimentStatus) {
   if (from === to) return;
   if (!VALID_TRANSITIONS[from]?.includes(to)) {
