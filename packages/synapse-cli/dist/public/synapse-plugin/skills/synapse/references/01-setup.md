@@ -28,27 +28,43 @@ If you do not have an API key yet:
 
 ## 2. MCP Server Configuration
 
-Synapse MCP uses the HTTP Streamable transport. Place this in `.mcp.json` at the project root or globally at `~/.claude/.mcp.json`.
+Synapse MCP uses the HTTP Streamable transport. There are two pieces of configuration that need to agree:
 
-The plugin bundle also ships the same template at `public/synapse-plugin/.mcp.json` so teams can copy a project-level config into place instead of rewriting it from scratch.
+1. **`.mcp.json`** at the project root (or global `~/.claude/.mcp.json`) declares the MCP server using env-variable placeholders.
+2. **Env variables** (`SYNAPSE_URL`, `SYNAPSE_API_KEY`) supply the real values at runtime. They live in `~/.claude/settings.json`'s `env` block, in `<project>/.claude/settings.json`'s `env` block, or in your shell environment.
 
-Replace `<BASE_URL>` with the Synapse address (for example `https://synapse.example.com` or `http://localhost:3000`).
+You do **not** put the real URL/key in `.mcp.json` and again in `settings.json`. Pick one place for the env values, leave `.mcp.json` as the placeholder template.
+
+The plugin ships the placeholder template at `public/synapse-plugin/.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "synapse": {
       "type": "http",
-      "url": "<BASE_URL>/api/mcp",
+      "url": "${SYNAPSE_URL}/api/mcp",
       "headers": {
-        "Authorization": "Bearer <your-api-key>"
+        "Authorization": "Bearer ${SYNAPSE_API_KEY}"
       }
     }
   }
 }
 ```
 
-Restart Claude Code after configuration so MCP picks up the new server.
+Then add the env values once. Example via `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "SYNAPSE_URL": "http://localhost:3000",
+    "SYNAPSE_API_KEY": "syn_..."
+  }
+}
+```
+
+If you prefer to avoid env indirection, you can substitute the values directly into `.mcp.json` (replace `${SYNAPSE_URL}` and `${SYNAPSE_API_KEY}` with the literal strings) — but make sure that file is not committed to git.
+
+Restart Claude Code after configuration so MCP picks up the new server and the plugin's bash hooks see the env variables.
 
 ### Optional: Project Filtering
 
@@ -88,9 +104,10 @@ A successful response includes your agent identity, roles, current assignments, 
 
 If it fails, check:
 - Is the API key correct and does it start with `syn_`?
-- Is the URL reachable?
-- Did you restart Claude Code?
-- Does the agent have the roles needed for the tools you expect to use (`pre_research`, `research`, `experiment`, `report`, `admin`)?
+- Is the URL reachable from the machine running Claude Code?
+- Did you restart Claude Code after editing `.mcp.json` or `settings.json`?
+- Are the env variables actually visible to the MCP server process? `echo $SYNAPSE_URL` from the shell that launches Claude Code should print the value.
+- Does the agent have the roles needed for the tools you expect to use (`pre_research`, `research`, `experiment`, `report`, `admin`, `pi_agent`)? `synapse_review_experiment` requires `admin` or `pi_agent` specifically.
 
 ---
 
