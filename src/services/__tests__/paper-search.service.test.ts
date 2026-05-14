@@ -678,6 +678,7 @@ describe("deduplicatePapers", () => {
     url: "https://example.com",
     arxivId: null,
     doi: null,
+    year: null,
     citationCount: null,
     source: "deepxiv",
     ...overrides,

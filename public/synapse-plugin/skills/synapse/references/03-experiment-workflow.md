@@ -237,7 +237,7 @@ This is the detailed flow for moving an experiment through `in_progress` to `com
     })
     ```
 
-    Use python + a plotting library to generate charts and embed them in the markdown where they help. Do **not** post the report as a comment — always use `synapse_save_experiment_report` so the dedicated result document exists. The plugin's `PostToolUse` hook on `synapse_submit_experiment_results` injects a reminder, but you should treat this step as part of the submit flow, not as something to wait for the hook to nag about.
+    Use python + a plotting library to generate charts and embed them in the markdown where they help. Upload generated figures with `synapse_upload_document_image({ experimentUuid, filename, mimeType, base64Content })`; the tool creates or reuses the dedicated result document and returns a Synapse-hosted `/api/documents/.../images/...` URL to embed. Do **not** use local paths, `data:` URLs, or third-party image hosts. Do **not** post the report as a comment — always use `synapse_save_experiment_report` so the dedicated result document exists. The plugin's `PostToolUse` hook on `synapse_submit_experiment_results` injects a reminder, but you should treat this step as part of the submit flow, not as something to wait for the hook to nag about.
 
 13. **Match the project description's language** — if the project brief is in Chinese, write plan, progress messages, and report in Chinese.
 

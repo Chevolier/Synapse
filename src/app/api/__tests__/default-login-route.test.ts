@@ -59,6 +59,7 @@ describe("POST /api/auth/default-login", () => {
           password: "synapse123",
         }),
       }),
+      { params: Promise.resolve({}) },
     );
 
     expect(response.status).toBe(200);

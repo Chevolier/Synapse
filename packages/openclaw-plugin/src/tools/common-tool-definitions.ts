@@ -506,14 +506,15 @@ export const commonToolDefinitions = defineOpenClawTools([
     },
     targetToolName: "synapse_save_experiment_report",
   }),
-  createPassthroughTool<{ documentUuid: string; filename: string; mimeType: string; base64Content: string }>({
+  createPassthroughTool<{ documentUuid?: string; experimentUuid?: string; filename: string; mimeType: string; base64Content: string }>({
     name: "synapse_upload_document_image",
     description:
-      "Upload a figure/image into a document's local image store and get back a Synapse-hosted URL for embedding in Markdown (e.g. ![alt](/api/documents/:uuid/images/...)). Use this for any figure you render in a report — never embed third-party image-host links (catbox, litterbox, imgur, etc.), because they expire and are not reliably reachable from end users' browsers.",
+      "Upload a figure/image into a document's local image store and get back a Synapse-hosted URL for embedding in Markdown (e.g. ![alt](/api/documents/:uuid/images/...)). Provide either documentUuid for an existing document or experimentUuid to create/reuse that experiment's result document before uploading. Use this for any figure you render in a report — never embed third-party image-host links (catbox, litterbox, imgur, etc.), because they expire and are not reliably reachable from end users' browsers.",
     parameters: {
       type: "object",
       properties: {
-        documentUuid: { type: "string", description: "Document UUID the image belongs to" },
+        documentUuid: { type: "string", description: "Existing Document UUID the image belongs to. Mutually exclusive with experimentUuid." },
+        experimentUuid: { type: "string", description: "Experiment UUID. Creates or reuses the dedicated experiment result document before uploading. Mutually exclusive with documentUuid." },
         filename: { type: "string", description: "Original file name, used for extension and sanitized server-side (e.g. 'cross-benchmark-summary.png')" },
         mimeType: {
           type: "string",
@@ -522,7 +523,7 @@ export const commonToolDefinitions = defineOpenClawTools([
         },
         base64Content: { type: "string", description: "Base64-encoded image bytes (no data: prefix)" },
       },
-      required: ["documentUuid", "filename", "mimeType", "base64Content"],
+      required: ["filename", "mimeType", "base64Content"],
       additionalProperties: false,
     },
     targetToolName: "synapse_upload_document_image",

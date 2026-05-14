@@ -185,6 +185,7 @@ Tool availability depends on the agent's Synapse roles. Public read/comment/noti
   - \`synapse_get_node_access_bundle({ experimentUuid, nodeUuid })\` — fetch managed SSH credentials
   - \`synapse_submit_experiment_results({ experimentUuid, outcome?, experimentResults, experimentBranch?, commitSha? })\` — submit results and finish execution
   - \`synapse_save_experiment_report({ experimentUuid, title?, content })\` — save the dedicated experiment report document when requested
+  - \`synapse_upload_document_image({ experimentUuid? | documentUuid?, filename, mimeType, base64Content })\` — upload report/document figures and embed returned Synapse URLs
 
 **Analysis:**
   - \`synapse_get_project_full_context({ researchProjectUuid })\` — reload full state
